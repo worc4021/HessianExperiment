@@ -1,0 +1,8 @@
+{
+    "dependencies": [
+        "pkgconf",
+        "fmt",
+        "eigen3",
+        "arrow"
+    ]
+}
