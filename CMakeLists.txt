@@ -60,9 +60,3 @@ target_link_libraries(ipopt_scan PRIVATE ${COINIPOPTLIBS} MKL::MKL autodiff::aut
 set_target_properties(ipopt_scan PROPERTIES 
                                     POSITION_INDEPENDENT_CODE ON
                                     MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-
-add_executable(parquet_test src/parquetwritetest.cpp)
-target_link_libraries(parquet_test PRIVATE Arrow::arrow_static Parquet::parquet_static)
-set_target_properties(parquet_test PROPERTIES 
-                                    POSITION_INDEPENDENT_CODE ON
-                                    MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
