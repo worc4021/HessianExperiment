@@ -28,7 +28,7 @@ struct Result
     double cpu_time{};
 };
 
-Result singlePointSolve(double x0, double y0, HessianMode mode = HessianMode::auto_diff)
+Result singlePointSolve(double x0, double y0, HessianMode mode = HessianMode::auto_diff, int print_level = 0)
 {
     Result retval{};
     // Create an instance of your nlp...
@@ -38,7 +38,7 @@ Result singlePointSolve(double x0, double y0, HessianMode mode = HessianMode::au
     // We are using the factory, since this allows us to compile this
     // example with an Ipopt Windows DLL
     Ipopt::SmartPtr<Ipopt::IpoptApplication> app = IpoptApplicationFactory();
-    app->Options()->SetIntegerValue("print_level", 0);
+    app->Options()->SetIntegerValue("print_level", print_level);
     if (mode == HessianMode::ipopt_lbfgs)
     {
         app->Options()->SetStringValue("hessian_approximation", "limited-memory");
@@ -106,49 +106,86 @@ arrow::Status writeToParquet(std::string filename,
     std::shared_ptr<arrow::Array> arr_exit_message;
     ARROW_ASSIGN_OR_RAISE(arr_exit_message, stringbuilder.Finish());
 
-    std::shared_ptr<arrow::Field>   field_x = arrow::field("x", arrow::float64()), 
-                                    field_y = arrow::field("y", arrow::float64()), 
-                                    field_fVal = arrow::field("fVal", arrow::float64()), 
-                                    field_iter = arrow::field("iter", arrow::uint64()), 
-                                    field_status = arrow::field("status", arrow::int32()), 
-                                    field_exit_message = arrow::field("exit_message", arrow::utf8()), 
-                                    field_time = arrow::field("cpu_time", arrow::float64()),
-                                    field_x0 = arrow::field("x0", arrow::float64()),
-                                    field_y0 = arrow::field("y0", arrow::float64());
-    std::shared_ptr<arrow::Schema> schema = arrow::schema({field_x,field_y,field_fVal,field_iter,field_status,field_exit_message,field_time,field_x0,field_y0});
+    std::shared_ptr<arrow::Field> field_x = arrow::field("x", arrow::float64()),
+                                  field_y = arrow::field("y", arrow::float64()),
+                                  field_fVal = arrow::field("fVal", arrow::float64()),
+                                  field_iter = arrow::field("iter", arrow::uint64()),
+                                  field_status = arrow::field("status", arrow::int32()),
+                                  field_exit_message = arrow::field("exit_message", arrow::utf8()),
+                                  field_time = arrow::field("cpu_time", arrow::float64()),
+                                  field_x0 = arrow::field("x0", arrow::float64()),
+                                  field_y0 = arrow::field("y0", arrow::float64());
+    std::shared_ptr<arrow::Schema> schema = arrow::schema({field_x, field_y, field_fVal, field_iter, field_status, field_exit_message, field_time, field_x0, field_y0});
 
-    std::shared_ptr<arrow::RecordBatch> rbatch = arrow::RecordBatch::Make(schema, arr_x->length(), {arr_x,arr_y,arr_fVal,arr_iter,arr_status,arr_exit_message,arr_time,arr_x0,arr_y0});
+    std::shared_ptr<arrow::RecordBatch> rbatch = arrow::RecordBatch::Make(schema, arr_x->length(), {arr_x, arr_y, arr_fVal, arr_iter, arr_status, arr_exit_message, arr_time, arr_x0, arr_y0});
 
-    std::shared_ptr<arrow::Table> tbl = arrow::Table::Make(schema, {arr_x,arr_y,arr_fVal,arr_iter,arr_status,arr_exit_message,arr_time,arr_x0,arr_y0}, arr_x->length());
+    std::shared_ptr<arrow::Table> tbl = arrow::Table::Make(schema, {arr_x, arr_y, arr_fVal, arr_iter, arr_status, arr_exit_message, arr_time, arr_x0, arr_y0}, arr_x->length());
 
     std::shared_ptr<arrow::io::FileOutputStream> outfile;
 
     ARROW_ASSIGN_OR_RAISE(outfile, arrow::io::FileOutputStream::Open(filename));
-  
+
     std::shared_ptr<parquet::WriterProperties> props = parquet::WriterProperties::Builder()
-        .max_row_group_length(64 * 1024)
-        ->created_by("IpoptScanner")
-        ->version(parquet::ParquetVersion::PARQUET_2_LATEST)
-        ->data_page_version(parquet::ParquetDataPageVersion::V2)
-        ->compression(arrow::Compression::SNAPPY)
-        ->build();
+                                                           .max_row_group_length(64 * 1024)
+                                                           ->created_by("IpoptScanner")
+                                                           ->version(parquet::ParquetVersion::PARQUET_2_LATEST)
+                                                           ->data_page_version(parquet::ParquetDataPageVersion::V2)
+                                                           ->compression(arrow::Compression::SNAPPY)
+                                                           ->build();
 
     std::shared_ptr<parquet::ArrowWriterProperties> arrow_props =
         parquet::ArrowWriterProperties::Builder()
-        .store_schema()
-        ->build();
-  
-  ARROW_RETURN_NOT_OK(parquet::arrow::WriteTable(*tbl,
-                                               arrow::default_memory_pool(), outfile,
-                                               /*chunk_size=*/3, props, arrow_props));
+            .store_schema()
+            ->build();
+
+    ARROW_RETURN_NOT_OK(parquet::arrow::WriteTable(*tbl,
+                                                   arrow::default_memory_pool(), outfile,
+                                                   /*chunk_size=*/3, props, arrow_props));
 
     return arrow::Status::OK();
 }
 
-int main(
-    int,
-    char **)
+void doScan(const std::string &approximation)
 {
+
+    HessianMode mode = HessianMode::auto_diff;
+    if ("autodiff" == approximation)
+    {
+        mode = HessianMode::auto_diff;
+    }
+    else if ("dfp" == approximation)
+    {
+        mode = HessianMode::dfp;
+    }
+    else if ("ipopt_lbfgs" == approximation)
+    {
+        mode = HessianMode::ipopt_lbfgs;
+    }
+    else if ("bfgs" == approximation)
+    {
+        mode = HessianMode::bfgs;
+    }
+    else if ("sr1" == approximation)
+    {
+        mode = HessianMode::sr1;
+    }
+    else if ("lsr1" == approximation)
+    {
+        mode = HessianMode::lsr1;
+    }
+    else if ("ldfp" == approximation)
+    {
+        mode = HessianMode::ldfp;
+    }
+    else if ("lbfgs" == approximation)
+    {
+        mode = HessianMode::lbfgs;
+    }
+    else
+    {
+        std::cerr << "Unknown approximation method: " << approximation << std::endl;
+        return;
+    }
 
     double xLb = -2., yLb = -3.;
     double xUb = 2., yUb = 1.;
@@ -179,7 +216,7 @@ int main(
         {
             double _x0 = xLb + iX * (xUb - xLb) / (nX - 1);
             double _y0 = yLb + iY * (yUb - yLb) / (nY - 1);
-            auto res = singlePointSolve(_x0, _y0, HessianMode::bfgs);
+            auto res = singlePointSolve(_x0, _y0, mode);
             x_inner.emplace_back(res.x);
             y_inner.emplace_back(res.y);
             fVal_inner.emplace_back(res.fVal);
@@ -203,21 +240,95 @@ int main(
             y0.insert(y0.end(), y0_inner.begin(), y0_inner.end());
         }
         double tTotal = std::accumulate(cpu_time_inner.begin(), cpu_time_inner.end(), 0.);
-        std::cout << "Total CPU time: " << tTotal << "s to process " << cpu_time_inner.size() << " problems " << fVal.size()/nY << "/" << nX << "." << std::endl;
+        std::cout << "Total CPU time: " << tTotal << "s to process " << cpu_time_inner.size() << " problems " << fVal.size() / nY << "/" << nX << "." << std::endl;
     }
 
     double tTotal = std::accumulate(cpu_time.begin(), cpu_time.end(), 0.);
     std::cout << "Total CPU time: " << tTotal << "s for " << nX * nY << " problems." << std::endl;
 
-    std::string modename = "bfgs";
-
-    auto st = writeToParquet(modename + ".parquet", x, y, fVal, iter, status, exit_message, cpu_time, x0, y0);
+    auto st = writeToParquet(approximation + ".parquet", x, y, fVal, iter, status, exit_message, cpu_time, x0, y0);
     if (!st.ok())
     {
         std::cerr << st << std::endl;
+        return;
+    }
+    else
+    {
+        std::cout << "Wrote to " << approximation << ".parquet" << std::endl;
+    }
+}
+
+void singleShot(const std::string &approximation)
+{
+
+    HessianMode mode = HessianMode::auto_diff;
+    if ("autodiff" == approximation)
+    {
+        mode = HessianMode::auto_diff;
+    }
+    else if ("dfp" == approximation)
+    {
+        mode = HessianMode::dfp;
+    }
+    else if ("ipopt_lbfgs" == approximation)
+    {
+        mode = HessianMode::ipopt_lbfgs;
+    }
+    else if ("bfgs" == approximation)
+    {
+        mode = HessianMode::bfgs;
+    }
+    else if ("sr1" == approximation)
+    {
+        mode = HessianMode::sr1;
+    }
+    else if ("lsr1" == approximation)
+    {
+        mode = HessianMode::lsr1;
+    }
+    else if ("ldfp" == approximation)
+    {
+        mode = HessianMode::ldfp;
+    }
+    else if ("lbfgs" == approximation)
+    {
+        mode = HessianMode::lbfgs;
+    }
+    else
+    {
+        std::cerr << "Unknown approximation method: " << approximation << std::endl;
+        return;
+    }
+
+    auto res = singlePointSolve(0., 0., mode, 5);
+}
+
+int main(
+    int argc,
+    char **argv)
+{
+
+    if (argc != 3)
+    {
+        std::cerr << "Usage: " << argv[0] << " --scan|--single <approximation>" << std::endl;
         return 1;
-    } else {
-        std::cout << "Wrote to " << modename << ".parquet" << std::endl;
+    }
+
+    std::string mode = argv[1];
+    std::string approximation = argv[2];
+
+    if (mode == "--scan")
+    {
+        doScan(approximation);
+    }
+    else if (mode == "--single")
+    {
+        singleShot(approximation);
+    }
+    else
+    {
+        std::cerr << "Unknown mode: " << mode << std::endl;
+        return 1;
     }
 
     return 0;
