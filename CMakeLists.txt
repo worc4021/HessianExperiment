@@ -44,7 +44,7 @@ if (WIN32)
     set(CMAKE_CXX_FLAGS "/Wall /EHsc")
     list(APPEND COINIPOPTLIBS ${ipopt_LIBRARY_DIRS}/ipopt.lib ${ipopt_LIBRARY_DIRS}/coinhsl.lib ${ipopt_LIBRARY_DIRS}/coinmumps.lib ${ipopt_LIBRARY_DIRS}/libcoinmetis.lib)
 else()
-    set(CMAKE_CXX_FLAGS "-Wall -Wextra")
+    set(CMAKE_CXX_FLAGS "-fpie")
     list(APPEND COINIPOPTLIBS ${ipopt_LIBRARY_DIRS}/libipopt.a ${ipopt_LIBRARY_DIRS}/libcoinhsl.a ${ipopt_LIBRARY_DIRS}/libcoinmumps.a ${ipopt_LIBRARY_DIRS}/libcoinmetis.a)
 endif()
 
@@ -55,8 +55,8 @@ target_include_directories(ipopt_scan PRIVATE
                             ${CMAKE_CURRENT_SOURCE_DIR}/include
                             ${ipopt_INCLUDE_DIRS})
 
-target_link_directories(ipopt_scan PRIVATE ${ipopt_LIBRARY_DIRS})
-target_link_libraries(ipopt_scan PRIVATE ${COINIPOPTLIBS} MKL::MKL autodiff::autodiff Arrow::arrow_static Parquet::parquet_static OpenMP::OpenMP_CXX)
+# target_link_directories(ipopt_scan PRIVATE ${ipopt_LIBRARY_DIRS})
+target_link_libraries(ipopt_scan PRIVATE PkgConfig::ipopt autodiff::autodiff Arrow::arrow_static Parquet::parquet_static OpenMP::OpenMP_CXX)
 set_target_properties(ipopt_scan PROPERTIES 
                                     POSITION_INDEPENDENT_CODE ON
                                     MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
