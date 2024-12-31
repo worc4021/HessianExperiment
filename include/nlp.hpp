@@ -10,6 +10,7 @@
 #include "IpTNLP.hpp"
 #include <string>
 #include <array>
+#include <memory>
 
 enum HessianMode
 {
