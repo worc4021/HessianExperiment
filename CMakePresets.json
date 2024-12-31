@@ -41,6 +41,11 @@
                 "type": "equals",
                 "lhs": "${hostSystemName}",
                 "rhs": "Linux"
+            },
+            "cacheVariables": {
+                "BUILD_SHARED_LIBS": "OFF",
+                "IPOPT_PREFIX": "$env{HOME}/repos/Ipopt/cache",
+                "VCPKG_TARGET_TRIPLET": "x64-linux"
             }
         },
         {
