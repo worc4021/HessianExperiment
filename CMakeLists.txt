@@ -29,11 +29,6 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(autodiff)
 
-set(MKL_LINK "static")
-set(MKL_THREADING "sequential")
-set(MKL_INTERFACE_FULL "intel_lp64")
-find_package(MKL REQUIRED)
-
 find_package(Eigen3 CONFIG REQUIRED)
 find_package(Arrow CONFIG REQUIRED)
 find_package(Parquet CONFIG REQUIRED)
@@ -41,11 +36,15 @@ include(FindOpenMP)
 
 set(COINIPOPTLIBS)
 if (WIN32)
+    set(MKL_LINK "static")
+    set(MKL_THREADING "sequential")
+    set(MKL_INTERFACE_FULL "intel_lp64")
+    find_package(MKL REQUIRED)
     set(CMAKE_CXX_FLAGS "/Wall /EHsc")
-    list(APPEND COINIPOPTLIBS ${ipopt_LIBRARY_DIRS}/ipopt.lib ${ipopt_LIBRARY_DIRS}/coinhsl.lib ${ipopt_LIBRARY_DIRS}/coinmumps.lib ${ipopt_LIBRARY_DIRS}/libcoinmetis.lib)
+    list(APPEND COINIPOPTLIBS ${ipopt_LIBRARY_DIRS}/ipopt.lib ${ipopt_LIBRARY_DIRS}/coinhsl.lib ${ipopt_LIBRARY_DIRS}/coinmumps.lib ${ipopt_LIBRARY_DIRS}/libcoinmetis.lib MKL::MKL)
 else()
-    set(CMAKE_CXX_FLAGS "-fpie")
-    list(APPEND COINIPOPTLIBS ${ipopt_LIBRARY_DIRS}/libipopt.a ${ipopt_LIBRARY_DIRS}/libcoinhsl.a ${ipopt_LIBRARY_DIRS}/libcoinmumps.a ${ipopt_LIBRARY_DIRS}/libcoinmetis.a)
+    set(CMAKE_CXX_FLAGS "-Wall -Wextra -fpie")
+    list(APPEND COINIPOPTLIBS PkgConfig::ipopt)
 endif()
 
 
@@ -55,8 +54,7 @@ target_include_directories(ipopt_scan PRIVATE
                             ${CMAKE_CURRENT_SOURCE_DIR}/include
                             ${ipopt_INCLUDE_DIRS})
 
-# target_link_directories(ipopt_scan PRIVATE ${ipopt_LIBRARY_DIRS})
-target_link_libraries(ipopt_scan PRIVATE PkgConfig::ipopt autodiff::autodiff Arrow::arrow_static Parquet::parquet_static OpenMP::OpenMP_CXX)
+target_link_libraries(ipopt_scan PRIVATE ${COINIPOPTLIBS} autodiff::autodiff Arrow::arrow_static Parquet::parquet_static OpenMP::OpenMP_CXX)
 set_target_properties(ipopt_scan PROPERTIES 
                                     POSITION_INDEPENDENT_CODE ON
                                     MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")

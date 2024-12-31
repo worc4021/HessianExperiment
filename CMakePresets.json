@@ -28,10 +28,27 @@
             },
             "cacheVariables": {
                 "BUILD_SHARED_LIBS": "OFF",
-                "IPOPT_PREFIX": "C:/repos/Ipopt/build",
                 "VCPKG_TARGET_TRIPLET": "x64-windows-static"
                 
                                 
+            }
+        },
+        {
+            "name": "windows-release-base",
+            "hidden": true,
+            "inherits": "windows-conifg-base",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+                "IPOPT_PREFIX": "C:/repos/Ipopt/build"
+            }
+        },
+        {
+            "name": "windows-debug-base",
+            "hidden": true,
+            "inherits": "windows-conifg-base",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "IPOPT_PREFIX": "C:/repos/Ipopt/build_dbg"
             }
         },
         {
@@ -81,34 +98,22 @@
         {
             "name": "windows-intel-debug-config",
             "displayName": "Intel oneAPI Debug",
-            "inherits": ["windows-intel-base","windows-conifg-base"],
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Debug"
-            }
+            "inherits": ["windows-intel-base","windows-debug-base"]
         },
         {
             "name": "windows-intel-release-config",
             "displayName": "Intel oneAPI Release",
-            "inherits": ["windows-intel-base","windows-conifg-base"],
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "RelWithDebInfo"
-            }
+            "inherits": ["windows-intel-base","windows-release-base"]
         },
         {
             "name": "windows-msvc-debug-config",
             "displayName": "MSVC Debug",
-            "inherits": ["windows-msvc-base","windows-conifg-base"],
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Debug"
-            }
+            "inherits": ["windows-msvc-base","windows-debug-base"]
         },
         {
             "name": "windows-msvc-release-config",
             "displayName": "MSVC Release",
-            "inherits": ["windows-msvc-base","windows-conifg-base"],
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "RelWithDebInfo"
-            }
+            "inherits": ["windows-msvc-base","windows-release-base"]
         },
         {
             "name": "linux-gcc-base",
