@@ -4,13 +4,14 @@
 //
 // Authors:  Carl Laird, Andreas Waechter     IBM    2004-11-05
 
-#ifndef __MYNLP_HPP__
-#define __MYNLP_HPP__
+#ifndef __NLP_HPP__
+#define __NLP_HPP__
 
 #include "IpTNLP.hpp"
 #include <string>
 #include <array>
 #include <memory>
+#include <span>
 
 enum HessianMode
 {
@@ -24,26 +25,22 @@ enum HessianMode
     lbfgs
 };
 
+struct GoldsteinPriceModel;
+
 class GoldsteinPrice : public Ipopt::TNLP
 {
 private:
-    struct HessianStore;
-    struct LimitedMemoryHessianStore;
-
+    std::vector<GoldsteinPriceModel> previousCalls;
 public:
     std::array<Ipopt::Number, 2> x0{};
     std::string exit_status{};
     HessianMode mode{HessianMode::auto_diff};
-    std::unique_ptr<HessianStore> hessianStore{nullptr};
-    std::unique_ptr<LimitedMemoryHessianStore> limitedMemoryHessianStore{nullptr};
-
-    /** default constructor */
-    GoldsteinPrice();
+    double damping_threshold{0.2};
 
     GoldsteinPrice(Ipopt::Number x0, Ipopt::Number y0, HessianMode mode = HessianMode::auto_diff);
 
     /** default destructor */
-    ~GoldsteinPrice() override;
+    ~GoldsteinPrice() = default;
 
     /**@name Overloaded from TNLP */
     //@{
@@ -176,6 +173,8 @@ private:
     GoldsteinPrice &operator=(
         const GoldsteinPrice &);
     //@}
+
+    void update(std::span<const Ipopt::Number> x);
 };
 
-#endif
+#endif // __NLP_HPP__

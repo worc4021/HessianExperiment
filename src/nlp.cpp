@@ -9,8 +9,8 @@
 #include "IpIpoptCalculatedQuantities.hpp"
 #include "IpTNLPAdapter.hpp"
 #include <cassert>
-#include <autodiff/forward/dual.hpp>
 #include <Eigen/Dense>
+#include <autodiff/forward/dual.hpp>
 #include <iostream>
 #include <algorithm>
 
@@ -20,150 +20,46 @@ T model(T x, T y)
     return (1. + pow(x + y + 1., 2) * (19. - 14. * x + 3. * pow(x, 2) - 14. * y + 6. * x * y + 3. * pow(y, 2))) * (30. + pow(2. * x - 3. * y, 2) * (18. - 32. * x + 12. * pow(x, 2) + 48. * y - 36. * x * y + 27. * pow(y, 2)));
 }
 
-struct GoldsteinPrice::HessianStore
+struct GoldsteinPriceModel
 {
-    HessianMode mode{HessianMode::dfp};
-    Eigen::Matrix2d hessian = Eigen::Matrix2d::Identity();
-    Eigen::Vector2d gradPre = Eigen::Vector2d::Zero();
-    Eigen::Vector2d grad = Eigen::Vector2d::Zero();
-    Eigen::Vector2d xPre = Eigen::Vector2d::Zero();
-    Eigen::Vector2d x = Eigen::Vector2d::Zero();
-
-    Eigen::Matrix2d getHessian(const Ipopt::Number *xSolver)
+    Eigen::Vector2d x;
+    Eigen::Vector2d g;
+    double f;
+    Eigen::Matrix2d B;
+    GoldsteinPriceModel(std::span<const Ipopt::Number> xSolver)
     {
-        x[0] = xSolver[0];
-        x[1] = xSolver[1];
-
+        x << xSolver[0], xSolver[1];
         autodiff::dual _x = x[0];
         autodiff::dual _y = x[1];
-
-        grad[0] = autodiff::derivative(model<autodiff::dual>, autodiff::wrt(_x), autodiff::at(_x, _y));
-        grad[1] = autodiff::derivative(model<autodiff::dual>, autodiff::wrt(_y), autodiff::at(_x, _y));
-
-        Eigen::Matrix2d _hessian = hessian;
-
-        if (xPre.norm() > 0.)
-        {
-            Eigen::Vector2d s = x - xPre;
-            Eigen::Vector2d y = grad - gradPre;
-            if (HessianMode::sr1 == mode)
-            {
-                Eigen::Vector2d deltaX = y - _hessian * s;
-                _hessian += deltaX * deltaX.transpose() / deltaX.dot(s);
-            }
-            else if (HessianMode::dfp == mode || HessianMode::bfgs == mode)
-            {
-                double phi = HessianMode::bfgs == mode ? 1. : 0.;
-                Eigen::Vector2d Bs = _hessian*s;
-                double sBs = s.dot(Bs);
-                double sy = s.dot(y);
-                double theta = 1.;
-                if (sy<0.2*sBs)
-                    theta = 0.8*sBs/(sBs-sy);
-                
-                Eigen::Vector2d r = theta*y + (1-theta)*Bs;
-                double sr = s.dot(r);
-                Eigen::Vector2d v = r / sr - Bs / sBs;                
-                Eigen::Matrix2d U = r*r.transpose();
-                Eigen::Matrix2d V = Bs*Bs.transpose();
-                Eigen::Matrix2d W = v*v.transpose();
-                _hessian += U/sr - V/sBs + phi*sBs * W;
-            }
-        }
-
-        return _hessian;
+        f = model<double>(xSolver[0], xSolver[1]);
+        g[0] = autodiff::derivative(model<autodiff::dual>, autodiff::wrt(_x), autodiff::at(_x, _y));
+        g[1] = autodiff::derivative(model<autodiff::dual>, autodiff::wrt(_y), autodiff::at(_x, _y));
+        B = Eigen::Matrix2d::Identity();
     }
-
-    void update(const Ipopt::Number *xSolver)
+    bool isNewX(std::span<const Ipopt::Number> xSolver) const
     {
-        hessian = getHessian(xSolver);
-        gradPre = grad;
-        xPre = x;
+        Eigen::Vector2d xTmp;
+        xTmp << xSolver[0], xSolver[1];
+        return (xTmp - x).norm();
     }
 
-    void reset() {
-        hessian = Eigen::Matrix2d::Identity();
-        gradPre = Eigen::Vector2d::Zero();
-        grad = Eigen::Vector2d::Zero();
-        xPre = Eigen::Vector2d::Zero();
-        x = Eigen::Vector2d::Zero();
-    }
-};
-
-struct GoldsteinPrice::LimitedMemoryHessianStore
-{
-    Eigen::Matrix<double, 2, 6> x = Eigen::Matrix<double, 2, 6>::Zero();
-    Eigen::Matrix<double, 2, 6> grad = Eigen::Matrix<double, 2, 6>::Zero();
-
-    std::size_t numel{0};
-
-    HessianMode mode{HessianMode::ldfp};
-
-    Eigen::Matrix2d getHessian(const Ipopt::Number *xSolver)
-    {
-        Eigen::Matrix2d hessian = Eigen::Matrix2d::Identity();
-
-        if (numel > 1)
+    Eigen::MatrixXd hessian() {
+        autodiff::dual2nd _x = x[0];
+        autodiff::dual2nd _y = x[1];
+        Eigen::Matrix2d H;
         {
-
-            x.col(0) << xSolver[0], xSolver[1];
-            autodiff::dual _x = x(0, 0);
-            autodiff::dual _y = x(1, 0);
-
-            grad.col(0) << autodiff::derivative(model<autodiff::dual>, autodiff::wrt(_x), autodiff::at(_x, _y)),
-                autodiff::derivative(model<autodiff::dual>, autodiff::wrt(_y), autodiff::at(_x, _y));
-
-            for (std::size_t i = numel - 1; i > 0; --i)
-            {
-                Eigen::Vector2d s = x.col(i - 1) - x.col(i);
-                Eigen::Vector2d y = grad.col(i - 1) - grad.col(i);
-                if (HessianMode::lsr1 == mode)
-                {
-                    Eigen::Vector2d deltaX = y - hessian * s;
-                    hessian += deltaX * deltaX.transpose() / deltaX.dot(s);
-                }
-                else if (HessianMode::ldfp == mode || HessianMode::lbfgs == mode)
-                {
-                    double phi = HessianMode::lbfgs == mode ? 1. : 0.;
-                    Eigen::Vector2d Bs = hessian*s;
-                    double sBs = s.dot(Bs);
-                    double sy = s.dot(y);
-                    double theta = 1.;
-                    if (sy<0.2*sBs)
-                        theta = 0.8*sBs/(sBs-sy);
-                    
-                    Eigen::Vector2d r = theta*y + (1-theta)*Bs;
-                    double sr = s.dot(r);
-                    Eigen::Vector2d v = r / sr - Bs / sBs;                
-                    Eigen::Matrix2d U = r*r.transpose();
-                    Eigen::Matrix2d V = Bs*Bs.transpose();
-                    Eigen::Matrix2d W = v*v.transpose();
-                    hessian += U/sr - V/sBs + phi*sBs * W;
-                }
-            }
+            auto [u0, u1, der] = autodiff::derivatives(model<autodiff::dual2nd>, autodiff::wrt(_x, _x), autodiff::at(_x, _y));
+            H(0,0) = der;
         }
-        return hessian;
-    }
-    void update(const Ipopt::Number *xSolver)
-    {
-        for (std::size_t i = 5; i > 0; --i)
         {
-            x.col(i) = x.col(i - 1);
-            grad.col(i) = grad.col(i - 1);
+            auto [u0, u1, der] = autodiff::derivatives(model<autodiff::dual2nd>, autodiff::wrt(_x, _y), autodiff::at(_x, _y));
+            H(1,0) = H(0,1) = der;
         }
-        x.col(0) << xSolver[0], xSolver[1];
-        autodiff::dual _x = x(0, 0);
-        autodiff::dual _y = x(1, 0);
-
-        grad.col(0) << autodiff::derivative(model<autodiff::dual>, autodiff::wrt(_x), autodiff::at(_x, _y)),
-            autodiff::derivative(model<autodiff::dual>, autodiff::wrt(_y), autodiff::at(_x, _y));
-        numel = std::min<std::size_t>(numel + 1, 6ul);
-    }
-
-    void reset() {
-        x = Eigen::Matrix<double, 2, 6>::Zero();
-        grad = Eigen::Matrix<double, 2, 6>::Zero();
-        numel = 0;
+        {
+            auto [u0, u1, der] = autodiff::derivatives(model<autodiff::dual2nd>, autodiff::wrt(_y, _y), autodiff::at(_x, _y));
+            H(1,1) = der;
+        }
+        return H;
     }
 };
 
@@ -233,19 +129,58 @@ std::string getStatus(Ipopt::SolverReturn status)
     return retVal;
 }
 
-/* Constructor. */
-GoldsteinPrice::GoldsteinPrice()
+GoldsteinPrice::GoldsteinPrice(Ipopt::Number _x0, Ipopt::Number _y0, HessianMode _mode)
+    : x0({_x0, _y0}), exit_status(getStatus(Ipopt::UNASSIGNED)), mode(_mode)
 {
+    previousCalls.push_back(GoldsteinPriceModel(x0));
 }
 
-GoldsteinPrice::GoldsteinPrice(Ipopt::Number x0, Ipopt::Number y0, HessianMode _mode)
-    : x0({x0, y0}), exit_status(getStatus(Ipopt::UNASSIGNED)), mode(_mode), hessianStore(std::make_unique<HessianStore>())
-{
-    hessianStore->mode = _mode;
+Eigen::MatrixXd sr1_update(const GoldsteinPriceModel &current, const GoldsteinPriceModel &previous) {
+    Eigen::Vector2d s = current.x - previous.x;
+    Eigen::Vector2d y = current.g - previous.g;
+    Eigen::Vector2d r = y - previous.B * s;
+    return previous.B + (r * r.transpose()) / r.dot(s);
 }
 
-GoldsteinPrice::~GoldsteinPrice()
+Eigen::MatrixXd damped_bfgs(const GoldsteinPriceModel &current, const GoldsteinPriceModel &previous, double damping = 0.2)
 {
+    Eigen::Vector2d s = current.x - previous.x;
+    Eigen::Vector2d y = current.g - previous.g;
+    
+    Eigen::Vector2d Bs = previous.B * s;
+    double sTBs = s.dot(Bs);
+    double yTs = y.dot(s);
+    double theta = yTs >= damping * sTBs ? 1. : (1.-damping)* sTBs / (sTBs - yTs);
+    Eigen::Vector2d r = theta * y + (1. - theta) * Bs;
+    return previous.B - (Bs * Bs.transpose()) / sTBs + (r * r.transpose()) / r.dot(s);
+}
+
+Eigen::MatrixXd damped_dfp(const GoldsteinPriceModel &current, const GoldsteinPriceModel &previous, double damping = 0.2)
+{
+    Eigen::Vector2d s = current.x - previous.x;
+    Eigen::Vector2d y = current.g - previous.g;
+    
+    Eigen::Vector2d Bs = previous.B * s;
+    double sTBs = s.dot(Bs);
+    double yTs = y.dot(s);
+    double theta = yTs >= damping * sTBs ? 1. : (1.-damping)* sTBs / (sTBs - yTs);
+    Eigen::Vector2d r = theta * y + (1. - theta) * Bs;
+    return (Eigen::Matrix2d::Identity() - r*s.transpose()/s.dot(r)) * previous.B *(Eigen::Matrix2d::Identity() - s*r.transpose()/s.dot(r)) + r * r.transpose() / r.dot(s);
+}
+
+void GoldsteinPrice::update(std::span<const Ipopt::Number> xSolver) {
+    GoldsteinPriceModel currentCall(xSolver);
+    if (previousCalls.size()==1)
+        previousCalls.emplace_back(currentCall);
+    else
+        previousCalls[1] = currentCall;
+
+    if (HessianMode::bfgs == mode)
+        previousCalls.back().B = damped_bfgs(previousCalls[1], previousCalls[0],damping_threshold);
+    else if (HessianMode::dfp == mode)
+        previousCalls.back().B = damped_dfp(previousCalls[1], previousCalls[0],damping_threshold);
+    else if (HessianMode::sr1 == mode)
+        previousCalls.back().B = sr1_update(previousCalls[1], previousCalls[0]);
 }
 
 bool GoldsteinPrice::get_nlp_info(
@@ -276,7 +211,7 @@ bool GoldsteinPrice::get_bounds_info(
     // here, the n and m we gave IPOPT in get_nlp_info are passed back to us.
     // If desired, we could assert to make sure they are what we think they are.
     assert(n == 2);
-    assert(m == 1);
+    assert(m == 0);
 
     // x1 has a lower bound of -1 and an upper bound of 1
     x_l[0] = -2.;
@@ -323,30 +258,28 @@ bool GoldsteinPrice::eval_f(
     bool new_x,
     Ipopt::Number &obj_value)
 {
-    // return the value of the objective function
-    Ipopt::Number x = xSolver[0];
-    Ipopt::Number y = xSolver[1];
+    if (previousCalls.back().isNewX(std::span{xSolver,n}))
+    {
+        update(std::span{xSolver,n});
+    }
 
-    obj_value = model(x, y);
+    obj_value = previousCalls.back().f;
 
     return true;
 }
 
 bool GoldsteinPrice::eval_grad_f(
     Ipopt::Index n,
-    const Ipopt::Number *xSolver,
+    const Ipopt::Number xSolver[],
     bool new_x,
-    Ipopt::Number *grad_f)
+    Ipopt::Number grad_f[])
 {
-    // return the gradient of the objective function grad_{x} f(x)
-
-    autodiff::dual x = xSolver[0];
-    autodiff::dual y = xSolver[1];
-
-    grad_f[0] = autodiff::derivative(model<autodiff::dual>, autodiff::wrt(x), autodiff::at(x, y));
-    grad_f[1] = autodiff::derivative(model<autodiff::dual>, autodiff::wrt(y), autodiff::at(x, y));
-    ;
-
+    if (previousCalls.back().isNewX(std::span{xSolver,n}))
+    {
+        update(std::span{xSolver,n});
+    }
+    grad_f[0] = previousCalls.back().g[0];
+    grad_f[1] = previousCalls.back().g[1];
     return true;
 }
 
@@ -371,14 +304,7 @@ bool GoldsteinPrice::eval_jac_g(
     Ipopt::Index *jCol,
     Ipopt::Number *values)
 {
-    if (nullptr == values)
-    {
-    }
-    else
-    {
-    }
-
-    return true;
+        return true;
 }
 
 bool GoldsteinPrice::eval_h(
@@ -395,20 +321,9 @@ bool GoldsteinPrice::eval_h(
     Ipopt::Number *values)
 {
 
-    if (obj_factor == 0.)
-    {
-        if (mode == HessianMode::sr1 || mode == HessianMode::dfp || mode == HessianMode::bfgs)
-            hessianStore->reset();
-        else if (mode == HessianMode::lsr1 || mode == HessianMode::ldfp || mode == HessianMode::lbfgs)
-            limitedMemoryHessianStore->reset();
-    }
-
     if (nullptr == values)
     {
-        // return the structure. This is a symmetric matrix, fill the lower left
-        // triangle only.
-
-        // element at 1,1: grad^2_{x1,x1} L(x,lambda)
+        // Lower left in fortran indexing.
         iRow[0] = 1;
         jCol[0] = 1;
         iRow[1] = 2;
@@ -421,32 +336,17 @@ bool GoldsteinPrice::eval_h(
         // return the values
         if (mode == HessianMode::auto_diff)
         {
-            autodiff::dual2nd x = xSolver[0];
-            autodiff::dual2nd y = xSolver[1];
-
-            {
-                auto [u0, u1, der] = autodiff::derivatives(model<autodiff::dual2nd>, autodiff::wrt(x, x), autodiff::at(x, y));
-                values[0] = der;
-            }
-            {
-                auto [u0, u1, der] = autodiff::derivatives(model<autodiff::dual2nd>, autodiff::wrt(x, y), autodiff::at(x, y));
-                values[1] = der;
-            }
-            {
-                auto [u0, u1, der] = autodiff::derivatives(model<autodiff::dual2nd>, autodiff::wrt(y, y), autodiff::at(x, y));
-                values[2] = der;
-            }
-        }
-        else if (mode == HessianMode::sr1 || mode == HessianMode::dfp || mode == HessianMode::bfgs)
-        {
-            Eigen::Matrix2d hessian = hessianStore->getHessian(xSolver);
+            Eigen::Matrix2d hessian = previousCalls.back().hessian();
             values[0] = hessian(0, 0);
             values[1] = hessian(1, 0);
             values[2] = hessian(1, 1);
         }
-        else if (mode == HessianMode::lsr1 || mode == HessianMode::ldfp || mode == HessianMode::lbfgs)
-        {
-            Eigen::Matrix2d hessian = limitedMemoryHessianStore->getHessian(xSolver);
+        else {
+            if (previousCalls.back().isNewX(std::span{xSolver,n}))
+            {
+                update(std::span{xSolver,n});
+            }
+            Eigen::Matrix2d hessian = previousCalls.back().B;
             values[0] = hessian(0, 0);
             values[1] = hessian(1, 0);
             values[2] = hessian(1, 1);
@@ -470,25 +370,23 @@ bool GoldsteinPrice::intermediate_callback(Ipopt::AlgorithmMode mode,
                                            [[maybe_unused]] const Ipopt::IpoptData *ip_data,
                                            [[maybe_unused]] Ipopt::IpoptCalculatedQuantities *ip_cq)
 {
-    if (Ipopt::AlgorithmMode::RestorationPhaseMode == mode){
-        if (this->mode == HessianMode::sr1 || this->mode == HessianMode::dfp || this->mode == HessianMode::bfgs)
-            hessianStore->reset();
-        else if (this->mode == HessianMode::lsr1 || this->mode == HessianMode::ldfp || this->mode == HessianMode::lbfgs)
-            limitedMemoryHessianStore->reset();
+
+    // Ipopt::OrigIpoptNLP *orignlp{nullptr};
+    // orignlp = dynamic_cast<Ipopt::OrigIpoptNLP *>(GetRawPtr(ip_cq->GetIpoptNLP()));
+    // Ipopt::TNLPAdapter *tnlp_adapter{nullptr};
+    // if (nullptr != orignlp)
+    //     tnlp_adapter = dynamic_cast<Ipopt::TNLPAdapter *>(GetRawPtr(orignlp->nlp()));
+
+    // Ipopt::Number x[2];
+    // tnlp_adapter->ResortX(*ip_data->curr()->x(), x);
+    if (previousCalls.size()>1 && previousCalls[0].B.isApprox(Eigen::Matrix2d::Identity()))
+    {
+        Eigen::Vector2d s = previousCalls[1].x - previousCalls[0].x;
+        Eigen::Vector2d y = previousCalls[1].g - previousCalls[0].g;
+        previousCalls[0].B = Eigen::Matrix2d::Identity()*y.dot(y)/s.dot(y);
     }
-
-    Ipopt::OrigIpoptNLP *orignlp{nullptr};
-    orignlp = dynamic_cast<Ipopt::OrigIpoptNLP *>(GetRawPtr(ip_cq->GetIpoptNLP()));
-    Ipopt::TNLPAdapter *tnlp_adapter{nullptr};
-    if (nullptr != orignlp)
-        tnlp_adapter = dynamic_cast<Ipopt::TNLPAdapter *>(GetRawPtr(orignlp->nlp()));
-
-    Ipopt::Number x[2];
-    tnlp_adapter->ResortX(*ip_data->curr()->x(), x);
-    if (this->mode == HessianMode::sr1 || this->mode == HessianMode::dfp)
-        hessianStore->update(x);
-    else if (this->mode == HessianMode::lsr1 || this->mode == HessianMode::ldfp)
-        limitedMemoryHessianStore->update(x);
+    if (previousCalls.size()>1)
+        previousCalls.erase(previousCalls.begin());
     return true;
 }
 
@@ -509,3 +407,197 @@ void GoldsteinPrice::finalize_solution(
     x0[1] = x[1];
     exit_status = getStatus(status);
 }
+
+
+
+
+// struct GoldsteinPrice::HessianStore
+// {
+//     HessianMode mode{HessianMode::dfp};
+//     Eigen::Matrix2d hessian = Eigen::Matrix2d::Identity();
+//     Eigen::Vector2d gradPre = Eigen::Vector2d::Zero();
+//     Eigen::Vector2d grad = Eigen::Vector2d::Zero();
+//     Eigen::Vector2d xPre = Eigen::Vector2d::Zero();
+//     Eigen::Vector2d x = Eigen::Vector2d::Random();
+//     std::size_t nUpdates{0};
+    
+//     HessianStore(const Ipopt::Number x0, const Ipopt::Number y0, HessianMode _mode = HessianMode::bfgs) : mode(_mode) {
+//         x << x0, y0;
+//         autodiff::dual _x = x[0];
+//         autodiff::dual _y = x[1];
+//         grad[0] = autodiff::derivative(model<autodiff::dual>, autodiff::wrt(_x), autodiff::at(_x, _y));
+//         grad[1] = autodiff::derivative(model<autodiff::dual>, autodiff::wrt(_y), autodiff::at(_x, _y));
+//     }
+
+//     Eigen::Matrix2d getHessian(const Ipopt::Number xSolver[])
+//     {
+//         Eigen::Vector2d xTmp;
+//         xTmp[0] = xSolver[0];
+//         xTmp[1] = xSolver[1];
+
+//         if ((xTmp - x).norm())
+//         {
+//             x = xTmp;
+//             autodiff::dual _x = x[0];
+//             autodiff::dual _y = x[1];
+
+//             grad[0] = autodiff::derivative(model<autodiff::dual>, autodiff::wrt(_x), autodiff::at(_x, _y));
+//             grad[1] = autodiff::derivative(model<autodiff::dual>, autodiff::wrt(_y), autodiff::at(_x, _y));
+
+//             Eigen::Matrix2d _hessian = hessian;
+
+//             Eigen::Vector2d s = x - xPre;
+//             Eigen::Vector2d y = grad - gradPre;
+//             double sy = s.dot(y);
+//             if (nUpdates<1)
+//                 _hessian *= y.dot(y) / sy;
+                
+//             if (sy)
+//             {
+//                 if (HessianMode::bfgs == mode)
+//                 {
+//                     Eigen::Vector2d Bs = _hessian * s;
+//                     double sqrtsBs = sqrt(s.dot(Bs));
+//                     double sqrtsy = sqrt(s.dot(y));
+//                     Bs /= sqrtsBs;
+//                     y /= sqrtsy;
+//                     _hessian -= Bs * Bs.transpose();
+//                     _hessian += y * y.transpose();
+//                 }
+//             }
+
+//             if (HessianMode::sr1 == mode)
+//             {
+//                 Eigen::Vector2d deltaX = y - _hessian * s;
+//                 _hessian += deltaX * deltaX.transpose() / deltaX.dot(s);
+//             }
+//             else if (HessianMode::dfp == mode)
+//             {
+//                 double rho = 1. / s.dot(y);
+//                 Eigen::Matrix2d L = Eigen::Matrix2d::Identity() - rho * y * s.transpose();
+//                 _hessian = L * _hessian * L.transpose();
+//                 _hessian += rho * y * y.transpose();
+//             }
+//             return _hessian;
+//         }
+//         else
+//         {
+//             return hessian;
+//         }
+//     }
+
+//     void update(const Ipopt::Number xSolver[])
+//     {
+
+//         Eigen::Vector2d xTmp;
+//         xTmp << xSolver[0], xSolver[1];
+//         if ((xTmp - x).norm())
+//         {
+//             xPre = x;
+//             gradPre = grad;
+//             hessian = getHessian(xSolver);
+//             ++nUpdates;
+//         }
+        
+//     }
+
+//     void reset()
+//     {
+//         hessian = Eigen::Matrix2d::Identity();
+//         gradPre = Eigen::Vector2d::Zero();
+//         xPre = Eigen::Vector2d::Zero();
+//         nUpdates = 0;
+//     }
+// };
+
+// struct GoldsteinPrice::LimitedMemoryHessianStore
+// {
+//     Eigen::Matrix<double, 2, 6> x = Eigen::Matrix<double, 2, 6>::Zero();
+//     Eigen::Matrix<double, 2, 6> grad = Eigen::Matrix<double, 2, 6>::Zero();
+
+//     std::size_t numel{0};
+
+//     HessianMode mode{HessianMode::ldfp};
+
+//     Eigen::Matrix2d getHessian(const Ipopt::Number xSolver[])
+//     {
+//         Eigen::Matrix2d hessian = Eigen::Matrix2d::Identity();
+
+//         if (numel > 1)
+//         {
+
+//             x.col(0) << xSolver[0], xSolver[1];
+//             autodiff::dual _x = x(0, 0);
+//             autodiff::dual _y = x(1, 0);
+
+//             grad.col(0) << autodiff::derivative(model<autodiff::dual>, autodiff::wrt(_x), autodiff::at(_x, _y)),
+//                 autodiff::derivative(model<autodiff::dual>, autodiff::wrt(_y), autodiff::at(_x, _y));
+
+//             std::vector<Eigen::Vector2d> ai(numel - 1);
+//             std::vector<Eigen::Vector2d> bi(numel - 1);
+
+//             Eigen::Vector2d s = x.col(0) - x.col(1);
+//             Eigen::Vector2d y = grad.col(0) - grad.col(1);
+//             double delta = y.dot(y) / y.dot(s);
+//             hessian *= delta;
+
+//             for (std::size_t i = numel - 1; i > 0; --i)
+//             {
+//                 s = x.col(i - 1) - x.col(i);
+//                 y = grad.col(i - 1) - grad.col(i);
+//                 if (HessianMode::lsr1 == mode)
+//                 {
+//                     Eigen::Vector2d deltaX = y - hessian * s;
+//                     hessian += deltaX * deltaX.transpose() / deltaX.dot(s);
+//                 }
+//                 else if (HessianMode::lbfgs == mode)
+//                 {
+
+//                     Eigen::Vector2d Bs = hessian * s;
+//                     double sqrtsBs = sqrt(s.dot(Bs));
+//                     double sqrtsy = sqrt(s.dot(y));
+//                     bi[i - 1] = y / sqrtsy;
+//                     ai[i - 1] = Bs / sqrtsBs;
+//                     for (std::size_t j = numel - 2; j >= i; --j)
+//                     {
+//                         ai[i - 1] += bi[j].dot(s) * bi[j];
+//                         ai[i - 1] -= ai[j].dot(s) * ai[j];
+//                     }
+//                     ai[i - 1] /= sqrtsy;
+//                 }
+//                 else if (HessianMode::ldfp == mode)
+//                 {
+//                 }
+//             }
+
+//             for (std::size_t i = numel - 1; i > 0; --i)
+//             {
+//                 hessian += bi[i - 1] * bi[i - 1].transpose();
+//                 hessian -= ai[i - 1] * ai[i - 1].transpose();
+//             }
+//         }
+//         return hessian;
+//     }
+//     void update(const Ipopt::Number xSolver[])
+//     {
+//         for (std::size_t i = 5; i > 0; --i)
+//         {
+//             x.col(i) = x.col(i - 1);
+//             grad.col(i) = grad.col(i - 1);
+//         }
+//         x.col(0) << xSolver[0], xSolver[1];
+//         autodiff::dual _x = x(0, 0);
+//         autodiff::dual _y = x(1, 0);
+
+//         grad.col(0) << autodiff::derivative(model<autodiff::dual>, autodiff::wrt(_x), autodiff::at(_x, _y)),
+//             autodiff::derivative(model<autodiff::dual>, autodiff::wrt(_y), autodiff::at(_x, _y));
+//         numel = std::min<std::size_t>(numel + 1, 6ul);
+//     }
+
+//     void reset()
+//     {
+//         x = Eigen::Matrix<double, 2, 6>::Zero();
+//         grad = Eigen::Matrix<double, 2, 6>::Zero();
+//         numel = 0;
+//     }
+// };

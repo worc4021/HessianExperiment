@@ -28,11 +28,12 @@ struct Result
     double cpu_time{};
 };
 
-Result singlePointSolve(double x0, double y0, HessianMode mode = HessianMode::auto_diff, int print_level = 0)
+Result singlePointSolve(double x0, double y0, HessianMode mode = HessianMode::auto_diff, int print_level = 0, double damping_threshold = 0.2)
 {
     Result retval{};
     // Create an instance of your nlp...
-    Ipopt::SmartPtr<Ipopt::TNLP> nlp = new GoldsteinPrice(x0, y0);
+    Ipopt::SmartPtr<Ipopt::TNLP> nlp = new GoldsteinPrice(x0, y0, mode);
+    reinterpret_cast<GoldsteinPrice *>(GetRawPtr(nlp))->damping_threshold = damping_threshold;
     // Create an instance of the IpoptApplication
     //
     // We are using the factory, since this allows us to compile this
@@ -42,6 +43,10 @@ Result singlePointSolve(double x0, double y0, HessianMode mode = HessianMode::au
     if (mode == HessianMode::ipopt_lbfgs)
     {
         app->Options()->SetStringValue("hessian_approximation", "limited-memory");
+    }
+    else
+    {
+        app->Options()->SetStringValue("hessian_approximation", "exact");
     }
     // Initialize the IpoptApplication and process the options
     Ipopt::ApplicationReturnStatus status;
@@ -145,9 +150,7 @@ arrow::Status writeToParquet(std::string filename,
     return arrow::Status::OK();
 }
 
-void doScan(const std::string &approximation)
-{
-
+HessianMode mapMode(const std::string &approximation){
     HessianMode mode = HessianMode::auto_diff;
     if ("autodiff" == approximation)
     {
@@ -184,9 +187,14 @@ void doScan(const std::string &approximation)
     else
     {
         std::cerr << "Unknown approximation method: " << approximation << std::endl;
-        return;
+        return HessianMode::ipopt_lbfgs;
     }
+    return mode;
+}
 
+void doScan(const std::string &approximation, double damping_threshold)
+{
+    HessianMode mode = mapMode(approximation);
     double xLb = -2., yLb = -3.;
     double xUb = 2., yUb = 1.;
     std::size_t nX = 173, nY = 181;
@@ -216,7 +224,7 @@ void doScan(const std::string &approximation)
         {
             double _x0 = xLb + iX * (xUb - xLb) / (nX - 1);
             double _y0 = yLb + iY * (yUb - yLb) / (nY - 1);
-            auto res = singlePointSolve(_x0, _y0, mode);
+            auto res = singlePointSolve(_x0, _y0, mode, 0, damping_threshold);
             x_inner.emplace_back(res.x);
             y_inner.emplace_back(res.y);
             fVal_inner.emplace_back(res.fVal);
@@ -258,49 +266,9 @@ void doScan(const std::string &approximation)
     }
 }
 
-void singleShot(const std::string &approximation)
+void singleShot(HessianMode mode, double damping_threshold)
 {
-
-    HessianMode mode = HessianMode::auto_diff;
-    if ("autodiff" == approximation)
-    {
-        mode = HessianMode::auto_diff;
-    }
-    else if ("dfp" == approximation)
-    {
-        mode = HessianMode::dfp;
-    }
-    else if ("ipopt_lbfgs" == approximation)
-    {
-        mode = HessianMode::ipopt_lbfgs;
-    }
-    else if ("bfgs" == approximation)
-    {
-        mode = HessianMode::bfgs;
-    }
-    else if ("sr1" == approximation)
-    {
-        mode = HessianMode::sr1;
-    }
-    else if ("lsr1" == approximation)
-    {
-        mode = HessianMode::lsr1;
-    }
-    else if ("ldfp" == approximation)
-    {
-        mode = HessianMode::ldfp;
-    }
-    else if ("lbfgs" == approximation)
-    {
-        mode = HessianMode::lbfgs;
-    }
-    else
-    {
-        std::cerr << "Unknown approximation method: " << approximation << std::endl;
-        return;
-    }
-
-    auto res = singlePointSolve(0., 0., mode, 5);
+    auto res = singlePointSolve(0., 0., mode, 5, damping_threshold);
 }
 
 int main(
@@ -308,7 +276,7 @@ int main(
     char **argv)
 {
 
-    if (argc != 3)
+    if (argc < 3)
     {
         std::cerr << "Usage: " << argv[0] << " --scan|--single <approximation>" << std::endl;
         return 1;
@@ -316,14 +284,19 @@ int main(
 
     std::string mode = argv[1];
     std::string approximation = argv[2];
+    double damping_threshold = 0.2;
+    if (argc > 3)
+    {
+        damping_threshold = std::stod(argv[3]);
+    }
 
     if (mode == "--scan")
     {
-        doScan(approximation);
+        doScan(approximation, damping_threshold);
     }
     else if (mode == "--single")
     {
-        singleShot(approximation);
+        singleShot(mapMode(approximation), damping_threshold);
     }
     else
     {
