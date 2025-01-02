@@ -12,18 +12,8 @@
 #include <array>
 #include <memory>
 #include <span>
+#include "GoldsteinPrice.hpp"
 
-enum HessianMode
-{
-    auto_diff,
-    dfp,
-    ipopt_lbfgs,
-    bfgs,
-    sr1,
-    lsr1,
-    ldfp,
-    lbfgs
-};
 
 struct GoldsteinPriceModel;
 

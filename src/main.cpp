@@ -195,8 +195,8 @@ HessianMode mapMode(const std::string &approximation){
 void doScan(const std::string &approximation, double damping_threshold)
 {
     HessianMode mode = mapMode(approximation);
-    double xLb = -2., yLb = -3.;
-    double xUb = 2., yUb = 1.;
+    double xLb = -2., yLb = -2.;
+    double xUb = 2., yUb = 2.;
     std::size_t nX = 173, nY = 181;
 
     std::vector<double> x;
