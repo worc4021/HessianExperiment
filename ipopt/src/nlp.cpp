@@ -83,7 +83,7 @@ std::string getStatus(Ipopt::SolverReturn status)
 GoldsteinPrice::GoldsteinPrice(Ipopt::Number _x0, Ipopt::Number _y0, HessianMode _mode)
     : x0({_x0, _y0}), exit_status(getStatus(Ipopt::UNASSIGNED)), mode(_mode)
 {
-    previousCalls.push_back(GoldsteinPriceModel(x0));
+    previousCalls.push_back(GoldsteinPriceModel<Ipopt::Number>(x0));
 }
 
 

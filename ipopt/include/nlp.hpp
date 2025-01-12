@@ -15,12 +15,10 @@
 #include "GoldsteinPrice.hpp"
 
 
-struct GoldsteinPriceModel;
-
 class GoldsteinPrice : public Ipopt::TNLP
 {
 private:
-    std::vector<GoldsteinPriceModel> previousCalls;
+    std::vector<GoldsteinPriceModel<Ipopt::Number>> previousCalls;
 public:
     std::array<Ipopt::Number, 2> x0{};
     std::string exit_status{};

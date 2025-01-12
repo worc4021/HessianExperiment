@@ -29,8 +29,6 @@
             "cacheVariables": {
                 "BUILD_SHARED_LIBS": "OFF",
                 "VCPKG_TARGET_TRIPLET": "x64-windows-static"
-                
-                                
             }
         },
         {
