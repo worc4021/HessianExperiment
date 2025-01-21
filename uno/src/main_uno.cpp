@@ -253,7 +253,7 @@ void doScan(const std::string &approximation, double damping_threshold)
     double tTotal = std::accumulate(cpu_time.begin(), cpu_time.end(), 0.);
     std::cout << "Total CPU time: " << tTotal << "s for " << nX * nY << " problems." << std::endl;
 
-    auto st = writeToParquet(approximation + ".parquet", x, y, fVal, iter, status, exit_message, cpu_time, x0, y0);
+    auto st = writeToParquet("uno_" + approximation + ".parquet", x, y, fVal, iter, status, exit_message, cpu_time, x0, y0);
     if (!st.ok())
     {
         std::cerr << st << std::endl;
@@ -261,13 +261,13 @@ void doScan(const std::string &approximation, double damping_threshold)
     }
     else
     {
-        std::cout << "Wrote to " << approximation << ".parquet" << std::endl;
+        std::cout << "Wrote to uno_" << approximation << ".parquet" << std::endl;
     }
 }
 
 void singleShot(HessianMode mode, double damping_threshold)
 {
-    auto res = singlePointSolve(0., 0., mode, "SILENT", damping_threshold);
+    auto res = singlePointSolve(0., 0., mode, "DISCRETE", damping_threshold);
 }
 
 int main(

@@ -258,12 +258,12 @@ class GoldSteinPriceUserCallbacks
             previousCalls.back().B = sr1_update(previousCalls[1], previousCalls[0]);
     }
     
-    void notify_new_multipliers(const uno::Multipliers& multipliers) override {
-
-    }
+    void notify_new_multipliers(const uno::Multipliers& multipliers) override { }
 
     public:
-    GoldSteinPriceUserCallbacks(double _x0, double _y0, HessianMode _mode) : mode(_mode) {
+    GoldSteinPriceUserCallbacks(double _x0, double _y0, HessianMode _mode) 
+        : mode(_mode) 
+    {
         std::array<double, 2> x0{_x0, _y0};
         previousCalls.emplace_back(GoldsteinPriceModel<double>(x0));
     }
@@ -285,7 +285,10 @@ class GoldSteinPriceUnoModel
     public:
         
 
-        GoldSteinPriceUnoModel(GoldSteinPriceUserCallbacks* _callbacks) : DataModel(2, 0, "GoldsteinPrice"), callbacks(_callbacks) {
+        GoldSteinPriceUnoModel(GoldSteinPriceUserCallbacks* _callbacks) 
+            : DataModel(2, 0, "GoldsteinPrice")
+            , callbacks(_callbacks) 
+        {
             _variable_lower_bounds = {-2., -2.};
             _variable_upper_bounds = {2., 2.};
             initialise_from_data();
@@ -297,22 +300,17 @@ class GoldSteinPriceUnoModel
 
         void evaluate_objective_gradient(const uno::Vector<double> &x, uno::SparseVector<double> &gradient) const override
         {
+            // This needs to check whether the x value is already evaluated or evaluate it if not
             gradient.insert(0, callbacks->get_previous_call().g[0]);
             gradient.insert(1, callbacks->get_previous_call().g[1]);
         }
 
-        void evaluate_constraints(const uno::Vector<double> &x, std::vector<double> &constraints) const override
-        {
-        }
+        void evaluate_constraints(const uno::Vector<double> &x, std::vector<double> &constraints) const override { }
 
-        void evaluate_constraint_gradient(const uno::Vector<double> &x, size_t constraint_index, uno::SparseVector<double> &gradient) const override
-        {
+        void evaluate_constraint_gradient(const uno::Vector<double> &x, size_t constraint_index, uno::SparseVector<double> &gradient) const override { }
             
-        }
-        void evaluate_constraint_jacobian(const uno::Vector<double> &x, uno::RectangularMatrix<double> &constraint_jacobian) const override
-        {
+        void evaluate_constraint_jacobian(const uno::Vector<double> &x, uno::RectangularMatrix<double> &constraint_jacobian) const override { }
             
-        }
         void evaluate_lagrangian_hessian(const uno::Vector<double> &x, double objective_multiplier, const uno::Vector<double> &multipliers,
                                          uno::SymmetricMatrix<size_t, double> &hessian) const override
         {
@@ -343,8 +341,8 @@ class GoldSteinPriceUnoModel
         }
 
         size_t number_objective_gradient_nonzeros() const override { return number_variables; }
-        size_t number_jacobian_nonzeros() const override { return 2 * number_variables; }
-        size_t number_hessian_nonzeros() const override { return number_variables * number_variables; }
+        size_t number_jacobian_nonzeros() const override { return 0; }
+        size_t number_hessian_nonzeros() const override { return (number_variables * (number_variables+1))/2; }
         
     };
 
