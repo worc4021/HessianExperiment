@@ -12,7 +12,7 @@
             "program": "${command:cmake.launchTargetPath}",
             "args": [
                 "--single",
-                "dfp"
+                "ipopt_lbfgs"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",

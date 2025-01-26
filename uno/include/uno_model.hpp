@@ -231,8 +231,8 @@ class GoldSteinPriceUserCallbacks
     HessianMode mode;
     double damping_threshold = 0.2;
 
-    void notify_acceptable_iterate(const uno::Vector<double>& primals, const uno::Multipliers& multipliers, double objective_multiplier) override {
-
+    void notify_acceptable_iterate(const uno::Vector<double>& primals, const uno::Multipliers& multipliers, double objective_multiplier) override 
+    {
         if (previousCalls.size()>1 && previousCalls[0].B.isApprox(Eigen::Matrix2d::Identity()))
         {
             Eigen::Vector2d s = previousCalls[1].x - previousCalls[0].x;
@@ -243,7 +243,12 @@ class GoldSteinPriceUserCallbacks
             previousCalls.erase(previousCalls.begin());
     }
 
-    void notify_new_primals(const uno::Vector<double>& primals) override {
+    void notify_new_primals(const uno::Vector<double>& primals) override 
+    {
+        push_new_primals(primals);
+    }
+    
+    void push_new_primals(const uno::Vector<double>& primals) { 
         GoldsteinPriceModel<double> currentCall(primals);
         if (previousCalls.size()==1)
             previousCalls.emplace_back(currentCall);
@@ -257,7 +262,7 @@ class GoldSteinPriceUserCallbacks
         else if (HessianMode::sr1 == mode)
             previousCalls.back().B = sr1_update(previousCalls[1], previousCalls[0]);
     }
-    
+
     void notify_new_multipliers(const uno::Multipliers& multipliers) override { }
 
     public:
@@ -308,9 +313,9 @@ class GoldSteinPriceUnoModel
         void evaluate_constraints(const uno::Vector<double> &x, std::vector<double> &constraints) const override { }
 
         void evaluate_constraint_gradient(const uno::Vector<double> &x, size_t constraint_index, uno::SparseVector<double> &gradient) const override { }
-            
+
         void evaluate_constraint_jacobian(const uno::Vector<double> &x, uno::RectangularMatrix<double> &constraint_jacobian) const override { }
-            
+
         void evaluate_lagrangian_hessian(const uno::Vector<double> &x, double objective_multiplier, const uno::Vector<double> &multipliers,
                                          uno::SymmetricMatrix<size_t, double> &hessian) const override
         {
