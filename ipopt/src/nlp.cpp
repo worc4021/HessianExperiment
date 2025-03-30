@@ -91,7 +91,7 @@ GoldsteinPrice::GoldsteinPrice(Ipopt::Number _x0, Ipopt::Number _y0, HessianMode
     previousCalls.reserve(nHorizon);
     previousCalls.emplace_back(GoldsteinPriceModel<Ipopt::Number>(x0));
     iHorizon = 1;
-    gradientScaling = 100. / previousCalls.back().g.lpNorm<Eigen::Infinity>();
+    gradientScaling = previousCalls.back().g.lpNorm<Eigen::Infinity>() > 1e-9 ? 100. / previousCalls.back().g.lpNorm<Eigen::Infinity>() : 1.;
 }
 
 
@@ -106,7 +106,8 @@ void GoldsteinPrice::update(std::span<const Ipopt::Number> xSolver) {
     {
         Eigen::Vector2d s = previousCalls.back().x - previousCalls.front().x;
         Eigen::Vector2d y = (previousCalls.back().g - previousCalls.front().g)*gradientScaling;
-        previousCalls.front().B = Eigen::Matrix2d::Identity()*y.dot(y)/s.dot(y);
+        Ipopt::Number factor = s.dot(y) > 1e-9 ? y.dot(y)/s.dot(y): 1.;
+        previousCalls.front().B = Eigen::Matrix2d::Identity()*factor;
     }
 
     if (HessianMode::bfgs == mode)
@@ -271,6 +272,8 @@ bool GoldsteinPrice::eval_h(
         if (HessianMode::auto_diff == mode)
         {
             Eigen::Matrix2d hessian = previousCalls.back().hessian();
+            hessian *= gradientScaling;
+            hessian *= gradientScaling;
             values[0] = hessian(0, 0);
             values[1] = hessian(1, 0);
             values[2] = hessian(1, 1);
@@ -292,7 +295,8 @@ bool GoldsteinPrice::eval_h(
                 
                 Eigen::Vector2d s = previousCalls[1].x - previousCalls[0].x;
                 Eigen::Vector2d y = (previousCalls[1].g - previousCalls[0].g)*gradientScaling;
-                previousCalls[0].B = Eigen::Matrix2d::Identity()*y.dot(y)/s.dot(y);
+                Ipopt::Number factor = s.dot(y) > 1e-9 ? y.dot(y)/s.dot(y): 1.;
+                previousCalls[0].B = Eigen::Matrix2d::Identity()*factor;
                 for (std::size_t i = 0; i < previousCalls.size()-1; ++i)
                 {
                     previousCalls[i+1].B = update(previousCalls[i+1], previousCalls[i]);
