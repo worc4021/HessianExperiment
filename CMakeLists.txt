@@ -2,6 +2,7 @@ set(CMAKE_TOOLCHAIN_FILE ${CMAKE_CURRENT_SOURCE_DIR}/vcpkg/scripts/buildsystems/
 cmake_minimum_required(VERSION 3.20)
 project(scan LANGUAGES CXX)
 
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 find_package(Eigen3 CONFIG REQUIRED)
 find_package(Arrow CONFIG REQUIRED)
 find_package(Parquet CONFIG REQUIRED)
@@ -9,6 +10,7 @@ set(MKL_LINK static)
 set(MKL_THREADING sequential)
 set(MKL_INTERFACE lp64)
 find_package(MKL REQUIRED)
+find_package(fmt CONFIG REQUIRED)
 include(FindOpenMP)
 
 include(FetchContent)

@@ -59,8 +59,25 @@
             },
             "cacheVariables": {
                 "BUILD_SHARED_LIBS": "OFF",
-                "IPOPT_PREFIX": "$env{HOME}/repos/Ipopt/cache",
                 "VCPKG_TARGET_TRIPLET": "x64-linux"
+            }
+        },
+        {
+            "name": "linux-debug-base",
+            "hidden": true,
+            "inherits": "linux-conifg-base",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "IPOPT_PREFIX": "$env{HOME}/repos/Ipopt/cacheDbg"
+            }
+        },
+        {
+            "name": "linux-release-base",
+            "hidden": true,
+            "inherits": "linux-conifg-base",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+                "IPOPT_PREFIX": "$env{HOME}/repos/Ipopt/cache"
             }
         },
         {
@@ -127,18 +144,12 @@
         {
             "name": "linux-gcc-release-config",
             "displayName": "linux GCC Release",
-            "inherits": ["linux-gcc-base","linux-conifg-base"],
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "RelWithDebInfo"
-            }
+            "inherits": ["linux-gcc-base","linux-release-base"]
         },
         {
             "name": "linux-gcc-debug-config",
             "displayName": "linux GCC Debug",
-            "inherits": ["linux-gcc-base","linux-conifg-base"],
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Debug"
-            }
+            "inherits": ["linux-gcc-base","linux-debug-base"]
         },
         {
             "name": "windows-gcc-release-config",
@@ -170,18 +181,12 @@
         {
             "name": "linux-intel-debug-config",
             "displayName": "linux Intel oneAPI Debug",
-            "inherits": "linux-intel-base",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Debug"
-            }
+            "inherits": ["linux-intel-base","linux-debug-base"]
         },
         {
             "name": "linux-intel-release-config",
             "displayName": "linux Intel oneAPI Release",
-            "inherits": "linux-intel-base",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "RelWithDebInfo"
-            }
+            "inherits": ["linux-intel-base","linux-release-base"]
         }
     ],
     "buildPresets": [
