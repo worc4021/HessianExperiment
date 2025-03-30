@@ -3,6 +3,7 @@ classdef TestModelHarness < handle
         previousCalls (:,1) TestModelCore
         mode (1,1) string {mustBeMember(mode,["bfgs","none"])} = "none"
         threshold = 0.2;
+        gradientScale (1,1) double
     end
 
     properties 
@@ -16,6 +17,7 @@ classdef TestModelHarness < handle
             end
             obj.previousCalls = TestModelCore(x0);
             obj.previousCalls.B = eye(2);
+            obj.gradientScale = 100/norm(obj.previousCalls.g,'inf');
         end
         function fVal = objective(obj,x)
             if obj.isnewx(x)
@@ -28,7 +30,7 @@ classdef TestModelHarness < handle
             if obj.isnewx(x)
                 obj.update(x);
             end
-            fGrad = obj.previousCalls(end).g;
+            fGrad = obj.previousCalls(end).g*obj.gradientScale;
         end
 
         function bContinue = intermediateCallback(obj,s)
@@ -37,7 +39,7 @@ classdef TestModelHarness < handle
             end
             if isequal(obj.previousCalls(1).B,eye(2)) && numel(obj.previousCalls)>1
                 s = obj.previousCalls(2).x - obj.previousCalls(1).x;
-                y = obj.previousCalls(2).g - obj.previousCalls(1).g;
+                y = obj.previousCalls(2).g*obj.gradientScale - obj.previousCalls(1).g*obj.gradientScale;
                 obj.previousCalls(1).B = eye(2)*(y'*y)/(s'*y);
             end
 
@@ -58,7 +60,7 @@ classdef TestModelHarness < handle
     methods (Hidden)
         function B = bfgs(obj)
             s = obj.previousCalls(2).x - obj.previousCalls(1).x;
-            y = obj.previousCalls(2).g - obj.previousCalls(1).g;
+            y = obj.previousCalls(2).g*obj.gradientScale - obj.previousCalls(1).g*obj.gradientScale;
             Bs = obj.previousCalls(1).B*s;
             theta = 1;
             if s'*y < obj.threshold*s'*Bs
