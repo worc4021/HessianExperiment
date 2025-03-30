@@ -18,8 +18,7 @@ target_include_directories(ipopt_scan PRIVATE
                             ${ipopt_INCLUDE_DIRS}
                             ${GLOBAL_INCLUDES})
 
-target_link_libraries(ipopt_scan PRIVATE ${COINIPOPTLIBS} autodiff::autodiff Arrow::arrow_static Parquet::parquet_static OpenMP::OpenMP_CXX)
+target_link_libraries(ipopt_scan PRIVATE ${COINIPOPTLIBS} autodiff::autodiff Arrow::arrow_static Parquet::parquet_static OpenMP::OpenMP_CXX fmt::fmt)
 set_target_properties(ipopt_scan PROPERTIES 
                                     POSITION_INDEPENDENT_CODE ON
-                                    MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
                                     CXX_STANDARD 20)
