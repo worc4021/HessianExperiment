@@ -17,6 +17,19 @@
 #include <vector>
 #include <numeric>
 
+/* Note: The "MS" section flags are to remove duplicates.  */
+#define DEFINE_GDB_PY_SCRIPT(script_name) \
+  asm("\
+.pushsection \".debug_gdb_scripts\", \"MS\",@progbits,1\n\
+.byte 1 /* Python */\n\
+.asciz \"" script_name "\"\n\
+.popsection \n\
+");
+
+DEFINE_GDB_PY_SCRIPT ("gdb/ipopt.py")
+DEFINE_GDB_PY_SCRIPT ("gdb/eigen.py")
+
+
 struct Result
 {
     double x{};
@@ -47,7 +60,12 @@ Result singlePointSolve(double x0, double y0, HessianMode mode = HessianMode::au
     else
     {
         app->Options()->SetStringValue("hessian_approximation", "exact");
+        app->Options()->SetStringValue("nlp_scaling_method", "none");
     }
+    
+    // app->Options()->SetStringValue("output_file", "log.ipoptout");
+    // app->Options()->SetIntegerValue("file_print_level", 12);
+    // app->Options()->SetIntegerValue("print_level", 12);
     // Initialize the IpoptApplication and process the options
     Ipopt::ApplicationReturnStatus status;
     status = app->Initialize();

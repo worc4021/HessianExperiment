@@ -19,11 +19,16 @@ class GoldsteinPrice : public Ipopt::TNLP
 {
 private:
     std::vector<GoldsteinPriceModel<Ipopt::Number>> previousCalls;
+    double gradientScaling{1.0};
+    std::size_t iHorizon{0};
+    bool acceptedInitial{false};
 public:
     std::array<Ipopt::Number, 2> x0{};
     std::string exit_status{};
     HessianMode mode{HessianMode::auto_diff};
     double damping_threshold{0.2};
+    std::size_t nHorizon{6};
+    
 
     GoldsteinPrice(Ipopt::Number x0, Ipopt::Number y0, HessianMode mode = HessianMode::auto_diff);
 

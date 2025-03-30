@@ -16,6 +16,20 @@ enum HessianMode
     lbfgs
 };
 
+inline bool limitedMemoryMode(HessianMode mode)
+{
+    return (HessianMode::lbfgs == mode || HessianMode::ldfp == mode || HessianMode::lsr1 == mode);
+}
+
+inline bool statefulMode(HessianMode mode)
+{
+    return (HessianMode::bfgs == mode || HessianMode::dfp == mode || HessianMode::sr1 == mode);
+}
+inline bool quasiNewtonMode(HessianMode mode)
+{
+    return (HessianMode::auto_diff != mode);
+}
+
 template <typename T>
 T model(T x, T y)
 {
@@ -65,18 +79,18 @@ struct GoldsteinPriceModel
     }
 };
 template <std::floating_point T>
-Eigen::Matrix<T, 2, 2> sr1_update(const GoldsteinPriceModel<T> &current, const GoldsteinPriceModel<T> &previous) {
+Eigen::Matrix<T, 2, 2> sr1_update(const GoldsteinPriceModel<T> &current, const GoldsteinPriceModel<T> &previous, T gradientScaling = 1.) {
     Eigen::Matrix<T, 2, 1> s = current.x - previous.x;
-    Eigen::Matrix<T, 2, 1> y = current.g - previous.g;
+    Eigen::Matrix<T, 2, 1> y = (current.g - previous.g)*gradientScaling;
     Eigen::Matrix<T, 2, 1> r = y - previous.B * s;
     return previous.B + (r * r.transpose()) / r.dot(s);
 }
 
 template<std::floating_point T>
-Eigen::Matrix<T, 2, 2> damped_bfgs(const GoldsteinPriceModel<T> &current, const GoldsteinPriceModel<T> &previous, T damping = 0.2)
+Eigen::Matrix<T, 2, 2> damped_bfgs(const GoldsteinPriceModel<T> &current, const GoldsteinPriceModel<T> &previous, T gradientScaling = 1., T damping = 0.2)
 {
     Eigen::Matrix<T, 2, 1> s = current.x - previous.x;
-    Eigen::Matrix<T, 2, 1> y = current.g - previous.g;
+    Eigen::Matrix<T, 2, 1> y = (current.g - previous.g)*gradientScaling;
     
     Eigen::Matrix<T, 2, 1> Bs = previous.B * s;
     T sTBs = s.dot(Bs);
@@ -87,10 +101,10 @@ Eigen::Matrix<T, 2, 2> damped_bfgs(const GoldsteinPriceModel<T> &current, const 
 }
 
 template<std::floating_point T>
-Eigen::Matrix<T, 2, 2> damped_dfp(const GoldsteinPriceModel<T> &current, const GoldsteinPriceModel<T> &previous, T damping = 0.2)
+Eigen::Matrix<T, 2, 2> damped_dfp(const GoldsteinPriceModel<T> &current, const GoldsteinPriceModel<T> &previous,T gradientScaling = 1., T damping = 0.2)
 {
     Eigen::Matrix<T, 2, 1> s = current.x - previous.x;
-    Eigen::Matrix<T, 2, 1> y = current.g - previous.g;
+    Eigen::Matrix<T, 2, 1> y = (current.g - previous.g)*gradientScaling;
     
     Eigen::Matrix<T, 2, 1> Bs = previous.B * s;
     T sTBs = s.dot(Bs);
