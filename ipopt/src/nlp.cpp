@@ -136,10 +136,10 @@ bool GoldsteinPrice::get_nlp_info(
 }
 
 bool GoldsteinPrice::get_bounds_info(
-    Ipopt::Index n,
+    [[maybe_unused]]Ipopt::Index n,
     Ipopt::Number *x_l,
     Ipopt::Number *x_u,
-    Ipopt::Index m,
+    [[maybe_unused]]Ipopt::Index m,
     Ipopt::Number *,
     Ipopt::Number *)
 {
@@ -164,13 +164,13 @@ bool GoldsteinPrice::get_bounds_info(
 
 bool GoldsteinPrice::get_starting_point(
     Ipopt::Index ,
-    bool init_x,
+    [[maybe_unused]]bool init_x,
     Ipopt::Number *x,
-    bool init_z,
+    [[maybe_unused]]bool init_z,
     Ipopt::Number *,
     Ipopt::Number *,
     Ipopt::Index ,
-    bool init_lambda,
+    [[maybe_unused]]bool init_lambda,
     Ipopt::Number *)
 {
     // Here, we assume we only have starting values for x, if you code
